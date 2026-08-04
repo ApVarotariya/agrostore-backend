@@ -1,0 +1,19 @@
+# Render service manifest for AgroStore backend
+# Deploy this service as a Web Service on Render.
+
+services:
+  - type: web
+    name: agrostore-backend
+    env: node
+    branch: main
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: MONGODB_URI
+        value: "${MONGODB_URI}"
+      - key: MONGODB_DB
+        value: "agrostore"
+      - key: MASTER_RECOVERY_KEY
+        value: "${MASTER_RECOVERY_KEY}"
+      - key: PORT
+        value: "5000"
