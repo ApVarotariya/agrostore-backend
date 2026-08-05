@@ -5,7 +5,7 @@ services:
   - type: web
     name: agrostore-backend
     env: node
-    branch: main
+    branch: master
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
