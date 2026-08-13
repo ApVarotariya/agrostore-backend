@@ -31,6 +31,8 @@ router.post('/', async (req: Request, res: Response) => {
       quantity: number;
       unit: string;
       unitPrice: number;
+      variantId?: string;
+      packSize?: string;
     }>;
 
     for (const item of items) {
@@ -40,25 +42,59 @@ router.post('/', async (req: Request, res: Response) => {
       }
 
       const product = await Product.findById(item.productId).session(session).lean();
-      if (!product || quantity > product.stock) {
-        throw new Error(`Insufficient stock for ${item.productName || item.productId}`);
+      if (!product) {
+        throw new Error(`Product not found: ${item.productName || item.productId}`);
       }
 
-      validatedItems.push({
-        productId: item.productId,
-        productName: product.name,
-        quantity,
-        unit: product.unit,
-        unitPrice: product.price,
-      });
+      if (item.variantId) {
+        const variant = product.variants?.find((v: any) => v.id === item.variantId);
+        if (!variant) {
+          throw new Error(`Variant not found for ${product.name}`);
+        }
+        if (quantity > variant.stock) {
+          throw new Error(`Insufficient stock for ${product.name} (${variant.packSize})`);
+        }
+        validatedItems.push({
+          productId: item.productId,
+          productName: `${product.name} (${variant.packSize})`,
+          quantity,
+          unit: product.unit,
+          unitPrice: variant.price,
+          variantId: item.variantId,
+          packSize: variant.packSize,
+        });
+      } else {
+        if (quantity > product.stock) {
+          throw new Error(`Insufficient stock for ${product.name}`);
+        }
+        validatedItems.push({
+          productId: item.productId,
+          productName: product.name,
+          quantity,
+          unit: product.unit,
+          unitPrice: product.price,
+        });
+      }
     }
 
     for (const item of validatedItems) {
-      const updateResult = await Product.updateOne(
-        { _id: item.productId, stock: { $gte: item.quantity } },
-        { $inc: { stock: -item.quantity } },
-        { session }
-      );
+      let updateResult;
+      if (item.variantId) {
+        updateResult = await Product.updateOne(
+          {
+            _id: item.productId,
+            variants: { $elemMatch: { id: item.variantId, stock: { $gte: item.quantity } } }
+          },
+          { $inc: { "variants.$.stock": -item.quantity } },
+          { session }
+        );
+      } else {
+        updateResult = await Product.updateOne(
+          { _id: item.productId, stock: { $gte: item.quantity } },
+          { $inc: { stock: -item.quantity } },
+          { session }
+        );
+      }
 
       if (updateResult.modifiedCount !== 1) {
         throw new Error(`Stock changed while invoicing ${item.productName}`);

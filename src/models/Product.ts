@@ -1,5 +1,12 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export interface ProductVariant {
+  id: string;
+  packSize: string;
+  price: number;
+  stock: number;
+}
+
 export interface ProductDocument extends Document {
   _id: string;
   name: string;
@@ -17,6 +24,7 @@ export interface ProductDocument extends Document {
   batchNumber?: string;
   expiryDate?: string;
   lowStockThreshold: number;
+  variants?: ProductVariant[];
 }
 
 const productSchema = new Schema<ProductDocument>(
@@ -37,6 +45,14 @@ const productSchema = new Schema<ProductDocument>(
     batchNumber: { type: String, trim: true },
     expiryDate: { type: String, trim: true },
     lowStockThreshold: { type: Number, required: true, default: 5, min: 0 },
+    variants: [
+      {
+        id: { type: String, required: true },
+        packSize: { type: String, required: true, trim: true },
+        price: { type: Number, required: true, min: 0 },
+        stock: { type: Number, required: true, min: 0 },
+      }
+    ],
   },
   { timestamps: false, versionKey: false }
 );

@@ -32,3 +32,11 @@ npm start
   - `MONGODB_DB`
   - `MASTER_RECOVERY_KEY`
   - `PORT` (optional)
+
+
+
+
+for first time aproving admin access
+curl -X POST https://agrostore-backend.onrender.com/api/settings/recovery-claim \
+  -H 'Content-Type: application/json' \
+  -d '{"deviceId":"agro-msgb9nj3-s8siggha4o","name":"Amit","phone":"919999999999","recoveryKey":"1234567890"}'

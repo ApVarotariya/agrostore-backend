@@ -34,6 +34,7 @@ router.post('/', async (req: Request, res: Response) => {
     batchNumber,
     expiryDate,
     lowStockThreshold,
+    variants,
   } = req.body;
 
   if (!id || !name || !category || price === undefined || !unit || stock === undefined) {
@@ -58,6 +59,7 @@ router.post('/', async (req: Request, res: Response) => {
       batchNumber: batchNumber || undefined,
       expiryDate: expiryDate || undefined,
       lowStockThreshold: Number(lowStockThreshold) || 5,
+      variants: variants || undefined,
     });
 
     await product.save();
@@ -90,6 +92,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     batchNumber,
     expiryDate,
     lowStockThreshold,
+    variants,
   } = req.body;
 
   if (!name || !category || price === undefined || !unit || stock === undefined) {
@@ -115,6 +118,7 @@ router.put('/:id', async (req: Request, res: Response) => {
         batchNumber: batchNumber || undefined,
         expiryDate: expiryDate || undefined,
         lowStockThreshold: Number(lowStockThreshold) || 5,
+        variants: variants || undefined,
       },
       { new: true, runValidators: true }
     ).lean();
@@ -146,11 +150,20 @@ router.post('/deduct-stock', async (req: Request, res: Response) => {
         throw new Error('Invalid item: missing productId or quantity');
       }
 
-      const updateResult = await Product.updateOne(
-        { _id: item.productId },
-        { $inc: { stock: -Number(item.quantity) } },
-        { session }
-      );
+      let updateResult;
+      if (item.variantId) {
+        updateResult = await Product.updateOne(
+          { _id: item.productId, "variants.id": item.variantId },
+          { $inc: { "variants.$.stock": -Number(item.quantity) } },
+          { session }
+        );
+      } else {
+        updateResult = await Product.updateOne(
+          { _id: item.productId },
+          { $inc: { stock: -Number(item.quantity) } },
+          { session }
+        );
+      }
 
       if (updateResult.matchedCount === 0) {
         throw new Error(`Product not found: ${item.productId}`);

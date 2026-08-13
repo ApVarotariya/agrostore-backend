@@ -5,6 +5,7 @@ import productRoutes from './routes/products';
 import settingRoutes from './routes/settings';
 import invoiceRoutes from './routes/invoices';
 import categoryRoutes from './routes/categories';
+import uploadRoutes from './routes/upload';
 import { connectMongo } from './db';
 
 dotenv.config();
@@ -20,6 +21,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/settings', settingRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Health check endpoint
 app.get('/api/health', (_req, res) => {

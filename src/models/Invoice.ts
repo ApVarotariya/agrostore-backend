@@ -6,6 +6,8 @@ export interface InvoiceItem {
   quantity: number;
   unit: string;
   unitPrice: number;
+  variantId?: string;
+  packSize?: string;
 }
 
 export interface InvoiceDocument extends Document {
@@ -24,6 +26,8 @@ const invoiceItemSchema = new Schema<InvoiceItem>(
     quantity: { type: Number, required: true, min: 1 },
     unit: { type: String, required: true, trim: true },
     unitPrice: { type: Number, required: true, min: 0 },
+    variantId: { type: String, trim: true },
+    packSize: { type: String, trim: true },
   },
   { _id: false }
 );
