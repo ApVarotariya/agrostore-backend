@@ -37,4 +37,15 @@ export function uploadToCloudinary(
   });
 }
 
+export function uploadMultipleToCloudinary(
+  buffers: Buffer[],
+  folder = 'agrostore/products'
+): Promise<string[]> {
+  if (!buffers.length) {
+    return Promise.resolve([]);
+  }
+
+  return Promise.all(buffers.map((buffer) => uploadToCloudinary(buffer, folder)));
+}
+
 export { cloudinary };

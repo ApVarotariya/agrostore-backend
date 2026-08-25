@@ -26,6 +26,7 @@ router.post('/', async (req: Request, res: Response) => {
     stock,
     description,
     imageUrl,
+    imageUrls,
     brand,
     packSize,
     cropSuitability,
@@ -41,6 +42,13 @@ router.post('/', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
+  const normalizedImageUrls = Array.isArray(imageUrls)
+    ? imageUrls.filter((url: unknown) => typeof url === 'string' && url.trim())
+    : [];
+  const normalizedImageUrl = typeof imageUrl === 'string' && imageUrl.trim()
+    ? imageUrl
+    : normalizedImageUrls[0];
+
   try {
     const product = new Product({
       _id: id,
@@ -50,7 +58,8 @@ router.post('/', async (req: Request, res: Response) => {
       unit,
       stock,
       description: description || undefined,
-      imageUrl: imageUrl || undefined,
+      imageUrl: normalizedImageUrl,
+      imageUrls: normalizedImageUrls.length ? normalizedImageUrls : undefined,
       brand: brand || undefined,
       packSize: packSize || undefined,
       cropSuitability: cropSuitability || undefined,
@@ -84,6 +93,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     stock,
     description,
     imageUrl,
+    imageUrls,
     brand,
     packSize,
     cropSuitability,
@@ -99,6 +109,13 @@ router.put('/:id', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
+  const normalizedImageUrls = Array.isArray(imageUrls)
+    ? imageUrls.filter((url: unknown) => typeof url === 'string' && url.trim())
+    : [];
+  const normalizedImageUrl = typeof imageUrl === 'string' && imageUrl.trim()
+    ? imageUrl
+    : normalizedImageUrls[0];
+
   try {
     const updatedProduct = await Product.findByIdAndUpdate(
       id,
@@ -109,7 +126,8 @@ router.put('/:id', async (req: Request, res: Response) => {
         unit,
         stock,
         description: description || undefined,
-        imageUrl: imageUrl || undefined,
+        imageUrl: normalizedImageUrl,
+        imageUrls: normalizedImageUrls.length ? normalizedImageUrls : undefined,
         brand: brand || undefined,
         packSize: packSize || undefined,
         cropSuitability: cropSuitability || undefined,

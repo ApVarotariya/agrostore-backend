@@ -16,6 +16,7 @@ export interface ProductDocument extends Document {
   stock: number;
   description?: string;
   imageUrl?: string;
+  imageUrls?: string[];
   brand?: string;
   packSize?: string;
   cropSuitability?: string;
@@ -37,6 +38,7 @@ const productSchema = new Schema<ProductDocument>(
     stock: { type: Number, required: true, min: 0 },
     description: { type: String, trim: true },
     imageUrl: { type: String, trim: true },
+    imageUrls: [{ type: String, trim: true }],
     brand: { type: String, trim: true },
     packSize: { type: String, trim: true },
     cropSuitability: { type: String, trim: true },
