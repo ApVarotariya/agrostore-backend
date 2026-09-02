@@ -87,7 +87,7 @@ router.get('/admins', async (req: Request, res: Response) => {
   if (!(await requireAdmin(req, res))) return;
 
   const AdminDevice = mongoose.model('AdminDevice');
-  const admins = await AdminDevice.find().sort({ createdAt: 1 }).lean().exec();
+  const admins = await AdminDevice.find({ active: true }).sort({ createdAt: 1 }).lean().exec();
   res.json(admins);
 });
 

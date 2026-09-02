@@ -16,6 +16,7 @@ export interface InvoiceDocument extends Document {
   customerPhone: string;
   items: InvoiceItem[];
   grandTotal: number;
+  paymentStatus: 'paid' | 'unpaid';
   createdAt: string;
 }
 
@@ -39,6 +40,7 @@ const invoiceSchema = new Schema<InvoiceDocument>(
     customerPhone: { type: String, required: true, trim: true },
     items: { type: [invoiceItemSchema], required: true },
     grandTotal: { type: Number, required: true, min: 0 },
+    paymentStatus: { type: String, enum: ['paid', 'unpaid'], default: 'unpaid' },
     createdAt: { type: String, required: true },
   },
   { timestamps: false, versionKey: false }
