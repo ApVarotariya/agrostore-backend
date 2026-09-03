@@ -344,114 +344,246 @@ router.get('/:id/pdf', async (req: Request, res: Response) => {
       return res.status(404).send('Invoice not found');
     }
 
-    // Load store name from settings, fallback to 'AgroStore'
-    let storeName = 'AgroStore';
-    let storeSubtitle = 'Quality Seeds, Fertilizers & Pesticides';
+    // ── Load store settings ──────────────────────────────────────────────
+    let storeName    = 'AgroStore';
+    let storePhone   = '';
+    let storeAddress = '';
+    let storeTagline = 'Quality Seeds, Fertilizers & Pesticides';
     try {
-      const nameDoc = await Setting.findById('store_name').lean();
-      if (nameDoc?.value) storeName = nameDoc.value;
+      const settingDocs = await Setting.find({
+        _id: { $in: ['store_name', 'store_phone', 'store_address', 'store_tagline'] },
+      }).lean();
+      const map: Record<string, string> = {};
+      settingDocs.forEach((s: any) => { map[s._id] = s.value; });
+      if (map.store_name)    storeName    = map.store_name;
+      if (map.store_phone)   storePhone   = map.store_phone;
+      if (map.store_address) storeAddress = map.store_address;
+      if (map.store_tagline) storeTagline = map.store_tagline;
     } catch { /* use defaults */ }
 
-    const items = invoice.items;
-    const paymentStatus = (invoice as any).paymentStatus ?? 'paid';
-    const isPaid = paymentStatus === 'paid';
+    const items       = invoice.items;
+    const payStatus   = (invoice as any).paymentStatus ?? 'paid';
+    const isPaid      = payStatus === 'paid';
 
-    const dateObj = new Date(invoice.createdAt);
+    const dateObj      = new Date(invoice.createdAt);
     const formattedDate = dateObj.toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+      day: '2-digit', month: 'short', year: 'numeric',
+    });
+    const formattedTime = dateObj.toLocaleTimeString('en-IN', {
+      hour: '2-digit', minute: '2-digit', hour12: true,
     });
 
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    // ── Palette ──────────────────────────────────────────────────────────
+    const GREEN       = '#1B5E20';
+    const GREEN_MID   = '#2E7D32';
+    const GREEN_LIGHT = '#E8F5E9';
+    const GREEN_CHIP  = '#A5D6A7';
+    const ORANGE      = '#E65100';
+    const ORANGE_BG   = '#FFF3E0';
+    const SLATE       = '#1E293B';
+    const SLATE_MID   = '#475569';
+    const SLATE_LIGHT = '#94A3B8';
+    const SURFACE     = '#FFFFFF';
+    const ROW_ALT     = '#F8FFFE';
+    const BORDER      = '#E2E8F0';
 
+    // ── Page setup ───────────────────────────────────────────────────────
+    const doc = new PDFDocument({ margin: 0, size: 'A4' });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="invoice-${id}.pdf"`);
     doc.pipe(res);
 
-    // ── Header ──────────────────────────────────────────────────────────
-    doc.fillColor('#2E7D32').fontSize(26).text(storeName, 50, 50);
-    doc.fillColor('#555555').fontSize(10).text(storeSubtitle, 50, 80);
-    doc.fillColor('#2E7D32').fontSize(20).text('INVOICE', 400, 50, { align: 'right' });
+    const PW = 595.28;   // A4 width  pt
+    const PH = 841.89;   // A4 height pt
+    const PAD = 40;      // outer margin
 
-    doc.fillColor('#333333').fontSize(10);
-    doc.text(`Invoice ID: ${invoice._id}`, 300, 75, { align: 'right', width: 250 });
-    doc.text(`Date: ${formattedDate}`, 300, 90, { align: 'right', width: 250 });
+    // ── Top accent bar ────────────────────────────────────────────────────
+    doc.rect(0, 0, PW, 6).fill(GREEN_MID);
 
-    // Payment status pill (top-right)
-    const pillColor = isPaid ? '#2E7D32' : '#E65100';
-    const pillLabel = isPaid ? '✓  PAID' : '⚠  UNPAID';
-    doc.rect(400, 108, 145, 20).fill(isPaid ? '#E8F5E9' : '#FFF3E0');
-    doc.fillColor(pillColor).fontSize(9).text(pillLabel, 400, 113, { align: 'center', width: 145 });
+    // ── Header card ───────────────────────────────────────────────────────
+    // Left: store branding
+    doc.fillColor(GREEN).fontSize(28).font('Helvetica-Bold')
+       .text(storeName, PAD, 24, { lineBreak: false });
 
-    doc.moveTo(50, 135).lineTo(545, 135).strokeColor('#E0E0E0').lineWidth(1).stroke();
+    doc.fillColor(SLATE_MID).fontSize(9).font('Helvetica')
+       .text(storeTagline, PAD, 57, { lineBreak: false });
 
-    // ── Bill To ─────────────────────────────────────────────────────────
-    doc.fillColor('#2E7D32').fontSize(11).text('BILL TO:', 50, 150);
-    doc.fillColor('#333333').fontSize(13).text(invoice.customerName, 50, 165);
-    doc.fontSize(10).text(`Phone: ${invoice.customerPhone}`, 50, 183);
-
-    doc.moveTo(50, 205).lineTo(545, 205).strokeColor('#E0E0E0').lineWidth(1).stroke();
-
-    // ── Table header ────────────────────────────────────────────────────
-    const tableTop = 220;
-    doc.rect(50, tableTop, 495, 24).fill('#2E7D32');
-    doc.fillColor('#FFFFFF').fontSize(10);
-    doc.text('#', 60, tableTop + 7, { width: 25 });
-    doc.text('Item Description', 88, tableTop + 7, { width: 225 });
-    doc.text('Pack Size', 316, tableTop + 7, { width: 70 });
-    doc.text('Qty', 390, tableTop + 7, { width: 45, align: 'right' });
-    doc.text('Rate', 438, tableTop + 7, { width: 50, align: 'right' });
-    doc.text('Amount', 492, tableTop + 7, { width: 50, align: 'right' });
-
-    // ── Table rows ──────────────────────────────────────────────────────
-    let y = tableTop + 24;
-    items.forEach((item, index) => {
-      const rowBg = index % 2 === 0 ? '#FFFFFF' : '#F9FBF9';
-      doc.rect(50, y, 495, 22).fill(rowBg);
-
-      doc.fillColor('#333333').fontSize(10);
-      doc.text(String(index + 1), 60, y + 6, { width: 25 });
-      doc.text(item.productName, 88, y + 6, { width: 225 });
-      doc.text(item.packSize ?? '—', 316, y + 6, { width: 70 });
-      doc.text(`${item.quantity} ${item.unit}`, 390, y + 6, { width: 45, align: 'right' });
-      doc.text(`₹${item.unitPrice.toFixed(2)}`, 438, y + 6, { width: 50, align: 'right' });
-      const rowTotal = item.unitPrice * item.quantity;
-      doc.text(`₹${rowTotal.toFixed(2)}`, 492, y + 6, { width: 50, align: 'right' });
-
-      y += 22;
-      doc.moveTo(50, y).lineTo(545, y).strokeColor('#E8E8E8').lineWidth(0.5).stroke();
-    });
-
-    // ── Totals ───────────────────────────────────────────────────────────
-    y += 16;
-    doc.rect(330, y, 215, 32).fill('#E8F5E9');
-    doc.fillColor('#2E7D32').fontSize(12).text('Grand Total:', 340, y + 10);
-    doc.fillColor('#1B5E20').fontSize(14)
-      .text(`₹${invoice.grandTotal.toFixed(2)}`, 440, y + 9, { align: 'right', width: 95 });
-
-    // If unpaid, show outstanding notice box below totals
-    if (!isPaid) {
-      y += 46;
-      doc.rect(50, y, 495, 36).fill('#FFF3E0');
-      doc.fillColor('#E65100').fontSize(11)
-        .text('⚠  PAYMENT PENDING', 60, y + 4, { width: 300 });
-      doc.fontSize(9).fillColor('#BF360C')
-        .text(
-          `Outstanding balance: ₹${invoice.grandTotal.toFixed(2)}  —  Please clear payment at your earliest convenience.`,
-          60, y + 18, { width: 480 }
-        );
+    if (storePhone || storeAddress) {
+      const contactLine = [storePhone, storeAddress].filter(Boolean).join('  ·  ');
+      doc.fillColor(SLATE_LIGHT).fontSize(8)
+         .text(contactLine, PAD, 70, { lineBreak: false });
     }
 
-    // ── Footer ────────────────────────────────────────────────────────────
-    const footerTop = 720;
-    doc.moveTo(50, footerTop).lineTo(545, footerTop).strokeColor('#2E7D32').lineWidth(1.5).stroke();
-    doc.fillColor('#2E7D32').fontSize(11)
-      .text(`Thank you for shopping at ${storeName}! 🌾`, 50, footerTop + 15, { align: 'center' });
-    doc.fillColor('#777777').fontSize(8.5)
-      .text('This is a computer-generated invoice and requires no signature.', 50, footerTop + 32, { align: 'center' });
+    // Right: INVOICE label + meta
+    doc.fillColor(GREEN_MID).fontSize(22).font('Helvetica-Bold')
+       .text('INVOICE', PW - PAD - 150, 24, { width: 150, align: 'right' });
+
+    doc.fillColor(SLATE).fontSize(9).font('Helvetica-Bold')
+       .text(String(invoice._id), PW - PAD - 150, 52, { width: 150, align: 'right' });
+
+    doc.fillColor(SLATE_MID).fontSize(8).font('Helvetica')
+       .text(`${formattedDate}  ${formattedTime}`, PW - PAD - 150, 65, { width: 150, align: 'right' });
+
+    // Payment status pill (right side)
+    const pillW = 80; const pillH = 18; const pillX = PW - PAD - pillW; const pillY = 80;
+    doc.roundedRect(pillX, pillY, pillW, pillH, 9)
+       .fill(isPaid ? GREEN_LIGHT : ORANGE_BG);
+    doc.fillColor(isPaid ? GREEN_MID : ORANGE).fontSize(8).font('Helvetica-Bold')
+       .text(isPaid ? '✓  PAID' : '⚠  UNPAID', pillX, pillY + 5, { width: pillW, align: 'center' });
+
+    // Divider
+    doc.moveTo(PAD, 108).lineTo(PW - PAD, 108)
+       .strokeColor(GREEN_CHIP).lineWidth(1).stroke();
+
+    // ── Bill To block ──────────────────────────────────────────────────────
+    const billY = 118;
+    doc.roundedRect(PAD, billY, 220, 68, 8).fill('#F0FDF4');
+    doc.fillColor(GREEN_MID).fontSize(7.5).font('Helvetica-Bold')
+       .text('BILL TO', PAD + 12, billY + 10);
+    doc.fillColor(SLATE).fontSize(13).font('Helvetica-Bold')
+       .text(invoice.customerName, PAD + 12, billY + 22, { width: 196 });
+    doc.fillColor(SLATE_MID).fontSize(9).font('Helvetica')
+       .text(invoice.customerPhone, PAD + 12, billY + 42);
+
+    // ── Summary block (right side of Bill To) ─────────────────────────────
+    const sumX = PAD + 240; const sumY = billY;
+    doc.roundedRect(sumX, sumY, 275, 68, 8).fill(GREEN_LIGHT);
+
+    const colA = sumX + 14; const colB = sumX + 145;
+    const r1 = sumY + 10; const r2 = sumY + 28; const r3 = sumY + 46;
+
+    doc.fillColor(SLATE_LIGHT).fontSize(7).font('Helvetica').text('INVOICE DATE', colA, r1);
+    doc.fillColor(SLATE).fontSize(9).font('Helvetica-Bold').text(formattedDate, colA, r1 + 9);
+
+    doc.fillColor(SLATE_LIGHT).fontSize(7).font('Helvetica').text('INVOICE ID', colA, r2);
+    doc.fillColor(SLATE).fontSize(8).font('Helvetica-Bold').text(String(invoice._id), colA, r2 + 9);
+
+    doc.fillColor(SLATE_LIGHT).fontSize(7).font('Helvetica').text('ITEMS', colB, r1);
+    doc.fillColor(SLATE).fontSize(9).font('Helvetica-Bold').text(String(items.length), colB, r1 + 9);
+
+    doc.fillColor(SLATE_LIGHT).fontSize(7).font('Helvetica').text('PAYMENT', colB, r2);
+    doc.fillColor(isPaid ? GREEN_MID : ORANGE).fontSize(9).font('Helvetica-Bold')
+       .text(isPaid ? 'Paid' : 'Unpaid', colB, r2 + 9);
+
+    // ── Table ──────────────────────────────────────────────────────────────
+    const tTop = billY + 80;
+
+    // Table header
+    doc.rect(PAD, tTop, PW - PAD * 2, 22).fill(GREEN);
+    doc.fillColor(SURFACE).fontSize(8.5).font('Helvetica-Bold');
+
+    // Col positions: #  |  Item  |  Pack  |  Qty  |  Rate  |  Amount
+    const C = {
+      num:    PAD + 8,
+      item:   PAD + 30,
+      pack:   PAD + 248,
+      qty:    PAD + 330,
+      rate:   PAD + 380,
+      amount: PAD + 440,
+    };
+    const TW = {
+      num:    20,
+      item:   210,
+      pack:   74,
+      qty:    44,
+      rate:   54,
+      amount: 65,
+    };
+
+    doc.text('#',           C.num,    tTop + 7, { width: TW.num,    align: 'center' });
+    doc.text('Item',        C.item,   tTop + 7, { width: TW.item });
+    doc.text('Pack Size',   C.pack,   tTop + 7, { width: TW.pack });
+    doc.text('Qty',         C.qty,    tTop + 7, { width: TW.qty,    align: 'right' });
+    doc.text('Rate',        C.rate,   tTop + 7, { width: TW.rate,   align: 'right' });
+    doc.text('Amount',      C.amount, tTop + 7, { width: TW.amount, align: 'right' });
+
+    // Table rows
+    let y = tTop + 22;
+    items.forEach((item, idx) => {
+      const rowH  = 24;
+      const rowBg = idx % 2 === 0 ? SURFACE : ROW_ALT;
+      doc.rect(PAD, y, PW - PAD * 2, rowH).fill(rowBg);
+
+      doc.fillColor(SLATE_MID).fontSize(8.5).font('Helvetica')
+         .text(String(idx + 1), C.num, y + 8, { width: TW.num, align: 'center' });
+
+      doc.fillColor(SLATE).fontSize(9).font('Helvetica-Bold')
+         .text(item.productName, C.item, y + 7, { width: TW.item });
+
+      // Bug 3 — variant shows packSize only; base shows unit
+      const packLabel = item.packSize ? item.packSize : '—';
+      doc.fillColor(SLATE_MID).fontSize(8.5).font('Helvetica')
+         .text(packLabel, C.pack, y + 8, { width: TW.pack });
+
+      // Qty: for variants just the number; for base products number + unit
+      const qtyLabel = item.packSize
+        ? String(item.quantity)
+        : `${item.quantity} ${item.unit}`;
+      doc.fillColor(SLATE_MID).fontSize(8.5).font('Helvetica')
+         .text(qtyLabel, C.qty, y + 8, { width: TW.qty, align: 'right' });
+
+      doc.fillColor(SLATE_MID).fontSize(8.5).font('Helvetica')
+         .text(`₹${item.unitPrice.toFixed(2)}`, C.rate, y + 8, { width: TW.rate, align: 'right' });
+
+      const rowTotal = item.unitPrice * item.quantity;
+      doc.fillColor(SLATE).fontSize(9).font('Helvetica-Bold')
+         .text(`₹${rowTotal.toFixed(2)}`, C.amount, y + 7, { width: TW.amount, align: 'right' });
+
+      y += rowH;
+
+      // thin separator
+      doc.moveTo(PAD, y).lineTo(PW - PAD, y).strokeColor(BORDER).lineWidth(0.4).stroke();
+    });
+
+    // ── Totals section ─────────────────────────────────────────────────────
+    y += 12;
+
+    // Subtotal line
+    doc.fillColor(SLATE_MID).fontSize(9).font('Helvetica')
+       .text('Subtotal', C.rate - 60, y, { width: 100, align: 'right' });
+    doc.fillColor(SLATE).fontSize(9).font('Helvetica')
+       .text(`₹${invoice.grandTotal.toFixed(2)}`, C.amount, y, { width: TW.amount, align: 'right' });
+
+    y += 14;
+    // Divider above grand total
+    doc.moveTo(C.rate - 60, y).lineTo(PW - PAD, y).strokeColor(BORDER).lineWidth(0.6).stroke();
+    y += 8;
+
+    // Grand total row
+    const gtH = 32;
+    doc.roundedRect(C.rate - 70, y, 70 + TW.amount + 10, gtH, 6).fill(GREEN);
+    doc.fillColor(SURFACE).fontSize(10).font('Helvetica-Bold')
+       .text('Grand Total', C.rate - 60, y + 10, { width: 100, align: 'right' });
+    doc.fillColor(SURFACE).fontSize(13).font('Helvetica-Bold')
+       .text(`₹${invoice.grandTotal.toFixed(2)}`, C.amount - 4, y + 9, { width: TW.amount + 4, align: 'right' });
+
+    y += gtH + 12;
+
+    // ── Unpaid notice ──────────────────────────────────────────────────────
+    if (!isPaid) {
+      const noticeH = 48;
+      doc.roundedRect(PAD, y, PW - PAD * 2, noticeH, 8).fill(ORANGE_BG);
+      doc.moveTo(PAD, y).lineTo(PAD, y + noticeH).strokeColor(ORANGE).lineWidth(3).stroke();
+      doc.fillColor(ORANGE).fontSize(10).font('Helvetica-Bold')
+         .text('Payment Pending', PAD + 14, y + 8);
+      doc.fillColor(SLATE_MID).fontSize(8.5).font('Helvetica')
+         .text(
+           `Outstanding balance: ₹${invoice.grandTotal.toFixed(2)}  —  Kindly clear this payment at your earliest convenience.`,
+           PAD + 14, y + 22, { width: PW - PAD * 2 - 20 }
+         );
+      y += noticeH + 12;
+    }
+
+    // ── Notes / thank you block ────────────────────────────────────────────
+    const noteY = PH - 80;
+    doc.moveTo(PAD, noteY).lineTo(PW - PAD, noteY).strokeColor(GREEN_CHIP).lineWidth(1).stroke();
+    doc.fillColor(GREEN_MID).fontSize(10).font('Helvetica-Bold')
+       .text(`Thank you for shopping at ${storeName}! 🌾`, PAD, noteY + 10, { align: 'center', width: PW - PAD * 2 });
+    doc.fillColor(SLATE_LIGHT).fontSize(7.5).font('Helvetica')
+       .text('This is a computer-generated invoice. No signature required.', PAD, noteY + 26, { align: 'center', width: PW - PAD * 2 });
+
+    // Bottom accent bar
+    doc.rect(0, PH - 6, PW, 6).fill(GREEN_MID);
 
     doc.end();
   } catch (error: any) {
